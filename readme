@@ -1,0 +1,205 @@
+Let’s go over **Prometheus installation and setup using Helm** — step-by-step.
+
+---
+
+## 🚀 **1. Overview**
+
+**Prometheus** is an open-source monitoring system and time-series database.
+**Helm** helps you deploy Prometheus easily on Kubernetes using preconfigured charts.
+
+---
+
+## 🧰 **2. Prerequisites**
+
+Before starting:
+
+* Kubernetes cluster (EKS, Minikube, Kind, etc.)
+* `kubectl` configured and working
+* Helm v3+ installed
+
+Verify:
+
+```bash
+kubectl get nodes
+helm version
+```
+
+---
+
+## ⚙️ **3. Add Helm Repository**
+
+Prometheus charts are hosted by the community (`prometheus-community` repo):
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+```
+
+Check available charts:
+
+```bash
+helm search repo prometheus
+```
+
+---
+
+## 🏗️ **4. Install Prometheus Using Helm**
+
+You can install directly into a namespace (e.g., `monitoring`):
+
+```bash
+kubectl create namespace monitoring
+helm install prometheus prometheus-community/prometheus -n monitoring
+```
+
+> ✅ This installs Prometheus server, Alertmanager, Pushgateway, node exporters, etc.
+
+---
+
+## 🧩 **5. Verify Installation**
+
+Check all pods:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+Check services:
+
+```bash
+kubectl get svc -n monitoring
+```
+
+You should see services like:
+
+* `prometheus-server`
+* `prometheus-alertmanager`
+* `prometheus-pushgateway`
+* `prometheus-node-exporter`
+
+---
+
+## 🌐 **6. Access Prometheus Dashboard**
+
+Port-forward to access the UI:
+
+```bash
+kubectl port-forward svc/prometheus-server -n monitoring 9090:80
+```
+
+Now open in browser:
+
+```
+http://localhost:9090
+```
+
+---
+
+## 🧭 **7. (Optional) Custom Configuration**
+
+If you want to override defaults, create a custom `values.yaml` file:
+
+Example (`prometheus-values.yaml`):
+
+```yaml
+server:
+  service:
+    type: NodePort
+    nodePort: 30090
+  retention: 10d
+alertmanager:
+  persistentVolume:
+    size: 2Gi
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 1Gi
+    cpu: 500m
+```
+
+Then install using:
+
+```bash
+helm install prometheus prometheus-community/prometheus -n monitoring -f prometheus-values.yaml
+```
+
+---
+
+## 📊 **8. Uninstall Prometheus**
+
+If you need to clean up:
+
+```bash
+helm uninstall prometheus -n monitoring
+kubectl delete namespace monitoring
+```
+
+---
+
+## 🧠 **9. Bonus: Prometheus + Grafana**
+
+Grafana is usually used to visualize metrics.
+
+Install both together:
+
+```bash
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring
+```
+
+This includes:
+
+* Prometheus
+* Grafana
+* Alertmanager
+* Node exporter
+* Kube-state-metrics
+
+Access Grafana:
+
+```bash
+kubectl port-forward svc/kube-prometheus-stack-grafana -n monitoring 3000:80
+```
+
+Login:
+
+* **User:** `admin`
+* **Password:** (get from secret)
+
+```bash
+kubectl get secret -n monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
+```
+
+---
+
+## 🖼️ **10. Architecture Overview**
+
+```
+        ┌──────────────────┐
+        │ Kubernetes Nodes │
+        ├──────────────────┤
+        │ Node Exporter    │
+        │ Kube-State-Metrics│
+        └─────────┬────────┘
+                  │
+                  ▼
+        ┌────────────────────┐
+        │   Prometheus Server │
+        │ - Scrapes Metrics   │
+        │ - Stores TSDB Data  │
+        └─────────┬───────────┘
+                  │
+                  ▼
+        ┌────────────────────┐
+        │   Alertmanager     │
+        │ - Sends Alerts     │
+        └─────────┬──────────┘
+                  │
+                  ▼
+        ┌────────────────────┐
+        │     Grafana        │
+        │ - Dashboards       │
+        └────────────────────┘
+```
+
